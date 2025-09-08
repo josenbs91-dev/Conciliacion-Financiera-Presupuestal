@@ -1,14 +1,13 @@
 import streamlit as st
 import pandas as pd
 from openpyxl import load_workbook
-from openpyxl.utils.dataframe import dataframe_to_rows
 
 st.title("Conciliación Financiera Presupuestal - Procesos 1, 2 y 3")
 
 uploaded_file = st.file_uploader("📂 Sube tu archivo Excel", type=["xlsx"])
 
 if uploaded_file:
-    # Leer archivo con formato original (dtype=object mantiene textos, fechas, números)
+    # Leer archivo con formato original
     df = pd.read_excel(uploaded_file, dtype=object)
 
     # --------------------------
@@ -23,7 +22,6 @@ if uploaded_file:
     # --------------------------
     # PROCESO 2 (Filtros contables)
     # --------------------------
-    # Filtro 1
     filtro1 = df[
         (df["tipo_ctb"].astype(str) == "1") &
         (pd.to_numeric(df["haber"], errors="coerce").fillna(0) != 0) &
@@ -34,7 +32,6 @@ if uploaded_file:
     ].copy()
     filtro1["saldo"] = df["haber"]
 
-    # Filtro 2
     filtro2 = df[
         (df["tipo_ctb"].astype(str) == "2") &
         (pd.to_numeric(df["debe"], errors="coerce").fillna(0) != 0) &
@@ -49,7 +46,6 @@ if uploaded_file:
     ].copy()
     filtro2["saldo"] = df["debe"]
 
-    # Filtro 3
     filtro3 = df[
         (df["ciclo"] == "C") & (df["fase"] == "C") &
         (
@@ -59,13 +55,11 @@ if uploaded_file:
             df["mayor"].astype(str).str.startswith("8601")
         )
     ].copy()
-    # saldo = haber - debe (manteniendo formato original)
     filtro3["saldo"] = (
         pd.to_numeric(df["haber"], errors="coerce").fillna(0) -
         pd.to_numeric(df["debe"], errors="coerce").fillna(0)
     )
 
-    # Concatenar filtros
     filtrado = pd.concat([filtro1, filtro2, filtro3])
 
     filtrado["codigo_unido"] = (
@@ -81,7 +75,7 @@ if uploaded_file:
     proceso2 = filtrado[columnas_finales]
 
     # --------------------------
-    # PROCESO 3 (Conciliación)
+    # PROCESO 3 (Conciliación horizontal)
     # --------------------------
     conciliacion_data = []
     for _, row in proceso1.iterrows():
@@ -101,7 +95,6 @@ if uploaded_file:
     # --------------------------
     output_file = "resultado_procesos.xlsx"
 
-    # Guardar hojas Original, Proceso 1 y 2
     with pd.ExcelWriter(output_file, engine="openpyxl") as writer:
         df.to_excel(writer, sheet_name="Original", index=False)
         proceso1.to_excel(writer, sheet_name="Proceso 1", index=False)
@@ -116,14 +109,14 @@ if uploaded_file:
         # Escribir título
         ws.cell(row=row_start, column=1,
                 value=f"Mayor-Subcta: {mayor_subcta} | Clasificador: {clasificador}")
-        row_start += 1
+        row_start += 2
 
-        # Escribir tabla
-        for r in dataframe_to_rows(tabla, index=False, header=True):
-            ws.append(r)
+        # Colocar los codigo_unido en forma horizontal (una fila)
+        for col_idx, value in enumerate(tabla["codigo_unido"].tolist(), start=1):
+            ws.cell(row=row_start, column=col_idx, value=value)
 
-        # Dejar 5 filas vacías entre tablas
-        row_start = ws.max_row + 6
+        # Dejar 5 filas vacías antes de la siguiente tabla
+        row_start += 6
 
     wb.save(output_file)
 
