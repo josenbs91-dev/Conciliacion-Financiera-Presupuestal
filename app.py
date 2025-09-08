@@ -21,13 +21,13 @@ if uploaded_file:
         # 📌 PROCESO 1
         # ==============================
         proceso1 = df[df["mayor"].str.startswith(("5", "4"), na=False)].copy()
-        proceso1["mayor_subcta"] = proceso1["mayor"] + "-" + proceso1["sub_cta"]
+        proceso1["mayor_subcta"] = proceso1["mayor"].astype(str) + "-" + proceso1["sub_cta"].astype(str)
         proceso1 = proceso1[["mayor_subcta", "clasificador"]]
 
         # ==============================
         # 📌 PROCESO 2
         # ==============================
-        df["codigo_unido"] = df["mayor"] + "-" + df["sub_cta"] + "-" + df["clasificador"]
+        df["codigo_unido"] = df["mayor"].astype(str) + "-" + df["sub_cta"].astype(str) + "-" + df["clasificador"].astype(str)
 
         # Filtro 1
         filtro1 = df[
@@ -43,13 +43,13 @@ if uploaded_file:
             (df["debe"].fillna(0) != 0) &
             (((df["ciclo"] == "G") & (df["fase"] == "D")) |
              ((df["ciclo"] == "I") & (df["fase"] == "R"))) &
-            (df["mayor"].str.startswith(("8501", "8601"), na=False))
+            (df["mayor"].astype(str).str.startswith(("8501", "8601"), na=False))
         ]
 
         # Filtro 3
         filtro3 = df[
             (df["ciclo"] == "C") & (df["fase"] == "C") &
-            (df["mayor"].str.startswith(("5", "4", "8501", "8601"), na=False))
+            (df["mayor"].astype(str).str.startswith(("5", "4", "8501", "8601"), na=False))
         ]
 
         proceso2 = pd.concat([filtro1, filtro2, filtro3], ignore_index=True)
@@ -63,8 +63,8 @@ if uploaded_file:
         # ==============================
         conciliacion_tables = []
         for _, row in proceso1.iterrows():
-            mayor_subcta = row["mayor_subcta"]
-            clasificador = row["clasificador"]
+            mayor_subcta = str(row["mayor_subcta"])
+            clasificador = str(row["clasificador"])
 
             # Filtrar filas que contengan mayor_subcta o clasificador
             subset = proceso2[
