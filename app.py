@@ -12,8 +12,8 @@ if uploaded_file:
     st.success("Archivo cargado correctamente")
 
     # ---------------- PROCESO 1 ----------------
-    proceso1 = df[df["mayor"].str.startswith(("5", "4"))].copy()
-    proceso1["mayor_subcta"] = proceso1["mayor"] + "-" + proceso1["sub_cta"]
+    proceso1 = df[df["mayor"].str.startswith(("5", "4"), na=False)].copy()
+    proceso1["mayor_subcta"] = proceso1["mayor"] + "-" + df["sub_cta"]
     proceso1 = proceso1[["mayor_subcta", "clasificador"]]
 
     # ---------------- PROCESO 2 ----------------
@@ -37,7 +37,7 @@ if uploaded_file:
             ((df["ciclo"] == "G") & (df["fase"] == "D"))
             | ((df["ciclo"] == "I") & (df["fase"] == "R"))
         )
-        & (df["mayor"].str.startswith(("8501", "8601")))
+        & (df["mayor"].str.startswith(("8501", "8601"), na=False))
     ]
 
     # Filtro 3
@@ -45,7 +45,7 @@ if uploaded_file:
         (df["ciclo"] == "C")
         & (df["fase"] == "C")
         & (
-            df["mayor"].str.startswith(("5", "4", "8501", "8601"))
+            df["mayor"].str.startswith(("5", "4", "8501", "8601"), na=False)
         )
     ]
 
@@ -65,12 +65,12 @@ if uploaded_file:
     # ---------------- PROCESO 3 ----------------
     conciliacion_tables = []
     for _, fila in proceso1.iterrows():
-        mayor_subcta = fila["mayor_subcta"]
-        clasificador = fila["clasificador"]
+        mayor_subcta = str(fila["mayor_subcta"])
+        clasificador = str(fila["clasificador"])
 
         subset = proceso2[
-            proceso2["codigo_unido"].str.contains(mayor_subcta)
-            | proceso2["codigo_unido"].str.contains(clasificador)
+            proceso2["codigo_unido"].str.contains(mayor_subcta, na=False)
+            | proceso2["codigo_unido"].str.contains(clasificador, na=False)
         ].copy()
 
         if not subset.empty:
@@ -92,9 +92,7 @@ if uploaded_file:
             pivoted.drop(columns=["codigo_unido"], inplace=True)
 
             conciliacion_tables.append(
-                pd.DataFrame(
-                    {col: [""] * 5 for col in pivoted.columns}
-                )
+                pd.DataFrame({col: [""] * 5 for col in pivoted.columns})
             )  # Espaciado
             conciliacion_tables.append(pivoted)
 
