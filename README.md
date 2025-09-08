@@ -9,11 +9,12 @@ App en **Streamlit** para filtrar datos de un archivo Excel según reglas de con
 
 ## 📂 Cómo funciona
 - Sube un archivo Excel con las columnas:  
-  `tipo_ctb, haber, debe, nro_not_exp, desc_documento, nro_doc, Fecha Contable, desc_proveedor`.
+  `tipo_ctb, haber, debe, nro_not_exp, desc_documento, nro_doc, Fecha Contable, desc_proveedor, mayor, sub_cta, clasificador`.
 - La app:
   - Filtra `tipo_ctb = 1` → solo si `haber ≠ 0`.  
   - Filtra `tipo_ctb = 2` → solo si `debe ≠ 0`.  
   - Crea una nueva columna `saldo` con el valor correspondiente.  
+  - Une `mayor-sub_cta-clasificador` en una sola columna llamada `codigo_unido`.  
 - Genera un nuevo Excel con dos hojas:
   - **Original** → todos los datos.
   - **Filtrado** → los registros procesados.
