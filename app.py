@@ -38,7 +38,7 @@ if uploaded_file:
     # --- FILTRO EXTRA CICLO/FASE ---
     condiciones = (
         ((filtrado["ciclo"] == "G") & (filtrado["fase"] == "D")) |
-        ((filtrado["ciclo"] == "I") & (filtrado["fase"] == "R")) |
+        ((filtrado["ciclo"] == "I") & (filtrado["fase"] == "D")) |
         ((filtrado["ciclo"] == "C") & (filtrado["fase"] == "C"))
     )
     filtrado = filtrado[condiciones]
@@ -51,6 +51,8 @@ if uploaded_file:
 
     st.subheader("📊 Datos filtrados")
     st.dataframe(resultado)
+
+    st.write(f"✅ Registros filtrados: {len(resultado)}")
 
     # Guardar en nueva hoja de Excel
     output_file = "resultado_filtrado.xlsx"
