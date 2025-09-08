@@ -17,7 +17,7 @@ App en **Streamlit** para filtrar datos de un archivo Excel según reglas de con
   - Une `mayor-sub_cta-clasificador` en una sola columna llamada `codigo_unido`.  
   - Aplica un **filtro extra**:  
     - ciclo = G y fase = D  
-    - ciclo = I y fase = R  
+    - ciclo = I y fase = D  
     - ciclo = C y fase = C  
 - Genera un nuevo Excel con dos hojas:
   - **Original** → todos los datos.
