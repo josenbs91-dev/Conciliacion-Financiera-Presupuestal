@@ -1,6 +1,6 @@
 # Conciliación Financiera Presupuestal
 
-App en **Streamlit** que procesa un Excel y aplica filtros contables.
+App en **Streamlit** que procesa un Excel aplicando filtros contables.
 
 ## 🚀 Filtros aplicados
 
@@ -21,7 +21,7 @@ App en **Streamlit** que procesa un Excel y aplica filtros contables.
 - `mayor` inicia con `5`, `4`, `8501` o `8601`
 - `saldo = haber - debe`
 
-Los tres filtros se concatenan en orden y se guardan en la hoja **Filtrado**.
+Los tres filtros se concatenan en orden en la hoja **Filtrado**.
 
 ## 📂 Columnas exportadas
 - `codigo_unido` (mayor-sub_cta-clasificador)
