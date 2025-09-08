@@ -1,27 +1,35 @@
 # Conciliación Financiera Presupuestal
 
-App en **Streamlit** para filtrar datos de un archivo Excel según reglas de conciliación financiera.
+App en **Streamlit** que filtra un archivo Excel aplicando tres filtros específicos.
 
-## 🚀 Uso en Streamlit Cloud
-1. Sube este repositorio a GitHub.
-2. Conéctalo con [Streamlit Cloud](https://share.streamlit.io).
-3. Selecciona el archivo `app.py` como entrada de la app.
+## 🚀 Filtros aplicados
+1. **Filtro 1**:  
+   - `tipo_ctb = 1`  
+   - `haber ≠ 0`  
+   - `(ciclo = G y fase = D) o (ciclo = I y fase = D)`  
+   - `saldo = haber`
 
-## 📂 Cómo funciona
-- Sube un archivo Excel con las columnas:  
-  `tipo_ctb, haber, debe, nro_not_exp, desc_documento, nro_doc, Fecha Contable, desc_proveedor, mayor, sub_cta, clasificador, ciclo, fase`.
-- La app:
-  - Filtra `tipo_ctb = 1` → solo si `haber ≠ 0`.  
-  - Filtra `tipo_ctb = 2` → solo si `debe ≠ 0`.  
-  - Crea columna `saldo` según corresponda.  
-  - Une `mayor-sub_cta-clasificador` en una sola columna llamada `codigo_unido`.  
-  - Aplica un **filtro extra**:  
-    - ciclo = G y fase = D  
-    - ciclo = I y fase = D  
-    - ciclo = C y fase = C  
-- Genera un nuevo Excel con dos hojas:
-  - **Original** → todos los datos.
-  - **Filtrado** → los registros procesados.
+2. **Filtro 2**:  
+   - `tipo_ctb = 2`  
+   - `debe ≠ 0`  
+   - `(ciclo = G y fase = D) o (ciclo = I y fase = R)`  
+   - `saldo = debe`
+
+3. **Filtro 3**:  
+   - `ciclo = C y fase = C`  
+   - `mayor` inicia con `5`, `4`, `8501` o `8601`  
+   - `saldo = haber - debe`
+
+Los tres filtros se concatenan en orden en la hoja **Filtrado**.
+
+## 📂 Columnas en el resultado
+- `codigo_unido` → unión de (`mayor-sub_cta-clasificador`)  
+- `nro_not_exp`  
+- `desc_documento`  
+- `nro_doc`  
+- `Fecha Contable`  
+- `desc_proveedor`  
+- `saldo`
 
 ## 📦 Instalación local
 ```bash
