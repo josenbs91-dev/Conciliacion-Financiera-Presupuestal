@@ -1,139 +1,129 @@
 import streamlit as st
 import pandas as pd
-from openpyxl import load_workbook
-from openpyxl.utils.dataframe import dataframe_to_rows
+import io
 
-st.title("Conciliación Financiera Presupuestal - Procesos 1, 2 y 3")
+st.title("Conciliación Financiera Presupuestal")
 
-uploaded_file = st.file_uploader("📂 Sube tu archivo Excel", type=["xlsx"])
+# Cargar archivo Excel
+uploaded_file = st.file_uploader("Sube tu archivo Excel", type=["xlsx"])
 
 if uploaded_file:
-    # Leer archivo con formato original (dtype=object mantiene textos, fechas, números)
-    df = pd.read_excel(uploaded_file, dtype=object)
+    try:
+        # Leer archivo
+        df = pd.read_excel(uploaded_file, dtype=str)
 
-    # --------------------------
-    # PROCESO 1
-    # --------------------------
-    proceso1 = df[df["mayor"].astype(str).str.startswith(("5", "4"))].copy()
-    proceso1["mayor_subcta"] = (
-        proceso1["mayor"].astype(str) + "-" + proceso1["sub_cta"].astype(str)
-    )
-    proceso1 = proceso1[["mayor_subcta", "clasificador"]].drop_duplicates()
+        # Convertir columnas numéricas donde aplique
+        for col in ["haber", "debe", "saldo"]:
+            if col in df.columns:
+                df[col] = pd.to_numeric(df[col], errors="coerce")
 
-    # --------------------------
-    # PROCESO 2 (Filtros contables)
-    # --------------------------
-    # Filtro 1
-    filtro1 = df[
-        (df["tipo_ctb"].astype(str) == "1") &
-        (pd.to_numeric(df["haber"], errors="coerce").fillna(0) != 0) &
-        (
-            ((df["ciclo"] == "G") & (df["fase"] == "D")) |
-            ((df["ciclo"] == "I") & (df["fase"] == "D"))
-        )
-    ].copy()
-    filtro1["saldo"] = df["haber"]
+        # ==============================
+        # 📌 PROCESO 1
+        # ==============================
+        proceso1 = df[df["mayor"].str.startswith(("5", "4"), na=False)].copy()
+        proceso1["mayor_subcta"] = proceso1["mayor"].astype(str) + "-" + proceso1["sub_cta"].astype(str)
+        proceso1 = proceso1[["mayor_subcta", "clasificador"]]
 
-    # Filtro 2
-    filtro2 = df[
-        (df["tipo_ctb"].astype(str) == "2") &
-        (pd.to_numeric(df["debe"], errors="coerce").fillna(0) != 0) &
-        (
-            ((df["ciclo"] == "G") & (df["fase"] == "D")) |
-            ((df["ciclo"] == "I") & (df["fase"] == "R"))
-        ) &
-        (
-            df["mayor"].astype(str).str.startswith("8501") |
-            df["mayor"].astype(str).str.startswith("8601")
-        )
-    ].copy()
-    filtro2["saldo"] = df["debe"]
+        # ==============================
+        # 📌 PROCESO 2
+        # ==============================
+        df["codigo_unido"] = df["mayor"].astype(str) + "-" + df["sub_cta"].astype(str) + "-" + df["clasificador"].astype(str)
 
-    # Filtro 3
-    filtro3 = df[
-        (df["ciclo"] == "C") & (df["fase"] == "C") &
-        (
-            df["mayor"].astype(str).str.startswith("5") |
-            df["mayor"].astype(str).str.startswith("4") |
-            df["mayor"].astype(str).str.startswith("8501") |
-            df["mayor"].astype(str).str.startswith("8601")
-        )
-    ].copy()
-    # saldo = haber - debe (manteniendo formato original)
-    filtro3["saldo"] = (
-        pd.to_numeric(df["haber"], errors="coerce").fillna(0) -
-        pd.to_numeric(df["debe"], errors="coerce").fillna(0)
-    )
+        # Filtro 1
+        filtro1 = df[
+            (df["tipo_ctb"] == "1") &
+            (df["haber"].fillna(0) != 0) &
+            (((df["ciclo"] == "G") & (df["fase"] == "D")) |
+             ((df["ciclo"] == "I") & (df["fase"] == "D")))
+        ]
 
-    # Concatenar filtros
-    filtrado = pd.concat([filtro1, filtro2, filtro3])
+        # Filtro 2
+        filtro2 = df[
+            (df["tipo_ctb"] == "2") &
+            (df["debe"].fillna(0) != 0) &
+            (((df["ciclo"] == "G") & (df["fase"] == "D")) |
+             ((df["ciclo"] == "I") & (df["fase"] == "R"))) &
+            (df["mayor"].astype(str).str.startswith(("8501", "8601"), na=False))
+        ]
 
-    filtrado["codigo_unido"] = (
-        filtrado["mayor"].astype(str) + "-" +
-        filtrado["sub_cta"].astype(str) + "-" +
-        filtrado["clasificador"].astype(str)
-    )
+        # Filtro 3
+        filtro3 = df[
+            (df["ciclo"] == "C") & (df["fase"] == "C") &
+            (df["mayor"].astype(str).str.startswith(("5", "4", "8501", "8601"), na=False))
+        ]
 
-    columnas_finales = [
-        "codigo_unido", "nro_not_exp", "desc_documento",
-        "nro_doc", "Fecha Contable", "desc_proveedor", "saldo"
-    ]
-    proceso2 = filtrado[columnas_finales]
+        proceso2 = pd.concat([filtro1, filtro2, filtro3], ignore_index=True)
+        proceso2 = proceso2[[
+            "codigo_unido", "nro_not_exp", "desc_documento", "nro_doc",
+            "Fecha Contable", "desc_proveedor", "saldo"
+        ]]
 
-    # --------------------------
-    # PROCESO 3 (Conciliación)
-    # --------------------------
-    conciliacion_data = []
-    for _, row in proceso1.iterrows():
-        mayor_subcta = str(row["mayor_subcta"])
-        clasificador = str(row["clasificador"])
+        # ==============================
+        # 📌 PROCESO 3 → Conciliación
+        # ==============================
+        conciliacion_tables = []
+        for _, row in proceso1.iterrows():
+            mayor_subcta = str(row["mayor_subcta"])
+            clasificador = str(row["clasificador"])
 
-        tabla = proceso2[
-            proceso2["codigo_unido"].str.contains(mayor_subcta, na=False) |
-            proceso2["codigo_unido"].str.contains(clasificador, na=False)
-        ].copy()
+            # Filtrar filas que contengan mayor_subcta o clasificador
+            subset = proceso2[
+                proceso2["codigo_unido"].astype(str).str.contains(mayor_subcta, na=False) |
+                proceso2["codigo_unido"].astype(str).str.contains(clasificador, na=False)
+            ].copy()
 
-        if not tabla.empty:
-            conciliacion_data.append((mayor_subcta, clasificador, tabla))
+            if not subset.empty:
+                # Pivot dinámico → cada codigo_unido se vuelve encabezado
+                pivot = subset.pivot_table(
+                    index=["nro_not_exp", "desc_documento", "nro_doc",
+                           "Fecha Contable", "desc_proveedor"],
+                    columns="codigo_unido",
+                    values="saldo",
+                    aggfunc="sum",
+                    fill_value=""
+                ).reset_index()
 
-    # --------------------------
-    # EXPORTAR A EXCEL
-    # --------------------------
-    output_file = "resultado_procesos.xlsx"
+                conciliacion_tables.append((f"{mayor_subcta}-{clasificador}", pivot))
 
-    # Guardar hojas Original, Proceso 1 y 2
-    with pd.ExcelWriter(output_file, engine="openpyxl") as writer:
-        df.to_excel(writer, sheet_name="Original", index=False)
-        proceso1.to_excel(writer, sheet_name="Proceso 1", index=False)
-        proceso2.to_excel(writer, sheet_name="Proceso 2", index=False)
+        # ==============================
+        # 📌 Exportar resultados
+        # ==============================
+        output = io.BytesIO()
+        with pd.ExcelWriter(output, engine="xlsxwriter", datetime_format="yyyy-mm-dd") as writer:
+            proceso1.to_excel(writer, sheet_name="Proceso 1", index=False)
 
-    # Abrir archivo y añadir hoja Conciliacion
-    wb = load_workbook(output_file)
-    ws = wb.create_sheet("Conciliacion")
+            # Escribir Proceso 2 y agregar "Datos a buscar"
+            proceso2.to_excel(writer, sheet_name="Proceso 2", index=False, startrow=2)
 
-    row_start = 1
-    for mayor_subcta, clasificador, tabla in conciliacion_data:
-        # Escribir título
-        ws.cell(row=row_start, column=1,
-                value=f"Mayor-Subcta: {mayor_subcta} | Clasificador: {clasificador}")
-        row_start += 1
+            workbook = writer.book
+            ws2 = writer.sheets["Proceso 2"]
 
-        # Escribir tabla
-        for r in dataframe_to_rows(tabla, index=False, header=True):
-            ws.append(r)
+            # Insertar etiqueta en L1
+            ws2.write("L1", "Datos a buscar")
+            ws2.write("L2", "")  # celda vacía para escribir manualmente
+            ws2.write("M2", "")  # celda vacía para escribir manualmente
 
-        # Dejar 5 filas vacías entre tablas
-        row_start = ws.max_row + 6
+            # Conciliación → varias tablas con espacio de 5 filas
+            if conciliacion_tables:
+                worksheet = workbook.add_worksheet("Conciliacion")
+                writer.sheets["Conciliacion"] = worksheet
 
-    wb.save(output_file)
+                start_row = 0
+                for name, table in conciliacion_tables:
+                    worksheet.write(start_row, 0, f"Tabla: {name}")
+                    table.to_excel(writer, sheet_name="Conciliacion",
+                                   startrow=start_row + 1, index=False)
+                    start_row += len(table) + 6  # tabla + título + 5 filas vacías
 
-    # --------------------------
-    # BOTÓN DESCARGA
-    # --------------------------
-    with open(output_file, "rb") as f:
+        st.success("Procesos completados correctamente ✅")
+
+        # Botón de descarga
         st.download_button(
-            "⬇️ Descargar Excel con Procesos 1, 2 y 3",
-            f,
-            file_name="resultado_procesos.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            label="📥 Descargar Excel Procesado",
+            data=output.getvalue(),
+            file_name="Procesos_Conciliacion.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
+
+    except Exception as e:
+        st.error(f"Ocurrió un error al procesar el archivo: {e}")
