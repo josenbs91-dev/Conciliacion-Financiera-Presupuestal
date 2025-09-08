@@ -56,4 +56,53 @@ if uploaded_file:
     filtro3 = df[
         (df["ciclo"] == "C") & (df["fase"] == "C") &
         (
-            df["mayor"].astype(str).str.s
+            df["mayor"].astype(str).str.startswith("5") |
+            df["mayor"].astype(str).str.startswith("4") |
+            df["mayor"].astype(str).str.startswith("8501") |
+            df["mayor"].astype(str).str.startswith("8601")
+        )
+    ].copy()
+    filtro3["saldo"] = pd.to_numeric(filtro3["haber"], errors="coerce").fillna(0) - \
+                       pd.to_numeric(filtro3["debe"], errors="coerce").fillna(0)
+
+    filtrado = pd.concat([filtro1, filtro2, filtro3])
+
+    filtrado["codigo_unido"] = (
+        filtrado["mayor"].astype(str) + "-" +
+        filtrado["sub_cta"].astype(str) + "-" +
+        filtrado["clasificador"].astype(str)
+    )
+
+    columnas_finales = [
+        "codigo_unido", "nro_not_exp", "desc_documento",
+        "nro_doc", "Fecha Contable", "desc_proveedor", "saldo"
+    ]
+    proceso2 = filtrado[columnas_finales]
+
+    st.subheader("📊 Proceso 1 (mayor-sub_cta y clasificadores)")
+    st.dataframe(proceso1)
+
+    st.subheader("📊 Proceso 2 (Filtros concatenados)")
+    st.dataframe(proceso2)
+
+    st.write(f"✅ Total registros Proceso 2 exportados: {len(proceso2)}")
+
+    # --------------------------
+    # EXPORTAR A EXCEL
+    # --------------------------
+    output_file = "resultado_procesos.xlsx"
+    with pd.ExcelWriter(output_file, engine="openpyxl") as writer:
+        df.to_excel(writer, sheet_name="Original", index=False)
+        proceso1.to_excel(writer, sheet_name="Proceso 1", index=False)
+        proceso2.to_excel(writer, sheet_name="Proceso 2", index=False)
+
+    if not proceso1.empty or not proceso2.empty:
+        with open(output_file, "rb") as f:
+            st.download_button(
+                "⬇️ Descargar Excel con Procesos 1 y 2",
+                f,
+                file_name="resultado_procesos.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            )
+    else:
+        st.warning("⚠️ No se encontraron registros para exportar.")
