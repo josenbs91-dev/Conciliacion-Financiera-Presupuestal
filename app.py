@@ -27,9 +27,17 @@ if uploaded_file:
         lambda x: x["haber"] if x["tipo_ctb"] == 1 else x["debe"], axis=1
     )
 
-    # Seleccionar columnas finales
+    # Crear columna unida mayor-sub_cta-clasificador
+    filtrado["codigo_unido"] = (
+        filtrado["mayor"].astype(str) + "-" +
+        filtrado["sub_cta"].astype(str) + "-" +
+        filtrado["clasificador"].astype(str)
+    )
+
+    # Seleccionar columnas finales en orden
     resultado = filtrado[
-        ["nro_not_exp", "desc_documento", "nro_doc", "Fecha Contable", "desc_proveedor", "saldo"]
+        ["codigo_unido", "nro_not_exp", "desc_documento", "nro_doc",
+         "Fecha Contable", "desc_proveedor", "saldo"]
     ]
 
     st.subheader("📊 Datos filtrados")
