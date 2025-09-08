@@ -4,6 +4,10 @@ import io
 
 st.title("Conciliación Financiera Presupuestal")
 
+# Inputs para filtrar Proceso 2
+criterio1 = st.text_input("🔍 Dato a buscar 1 (opcional)")
+criterio2 = st.text_input("🔍 Dato a buscar 2 (opcional)")
+
 # Cargar archivo Excel
 uploaded_file = st.file_uploader("Sube tu archivo Excel", type=["xlsx"])
 
@@ -58,6 +62,16 @@ if uploaded_file:
             "Fecha Contable", "desc_proveedor", "saldo"
         ]]
 
+        # ✅ Aplicar filtros de criterios desde Streamlit
+        if criterio1 or criterio2:
+            condiciones = []
+            if criterio1:
+                condiciones.append(proceso2["codigo_unido"].astype(str).str.contains(criterio1, na=False))
+            if criterio2:
+                condiciones.append(proceso2["codigo_unido"].astype(str).str.contains(criterio2, na=False))
+            if condiciones:
+                proceso2 = proceso2[pd.concat(condiciones, axis=1).any(axis=1)]
+
         # ==============================
         # 📌 PROCESO 3 → Conciliación
         # ==============================
@@ -98,10 +112,10 @@ if uploaded_file:
             workbook = writer.book
             ws2 = writer.sheets["Proceso 2"]
 
-            # Insertar etiqueta en L1
+            # Insertar etiqueta y criterios en L1, L2 y M2
             ws2.write("L1", "Datos a buscar")
-            ws2.write("L2", "")  # celda vacía para escribir manualmente
-            ws2.write("M2", "")  # celda vacía para escribir manualmente
+            ws2.write("L2", criterio1 if criterio1 else "")
+            ws2.write("M2", criterio2 if criterio2 else "")
 
             # Conciliación → varias tablas con espacio de 5 filas
             if conciliacion_tables:
