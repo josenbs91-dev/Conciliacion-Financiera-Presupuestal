@@ -15,13 +15,11 @@ ejecutar = st.button("Ejecutar procesos y generar Excel")
 
 if uploaded_file and ejecutar:
     try:
-        # Leer archivo Excel
+        # Leer archivo Excel manteniendo formatos originales
         xls = pd.ExcelFile(uploaded_file)
+        df_all = pd.concat([xls.parse(sheet, dtype=str) for sheet in xls.sheet_names])
 
-        # Concatenar todas las hojas para procesos iniciales
-        df_all = pd.concat([xls.parse(sheet) for sheet in xls.sheet_names])
-
-        # Forzar que las columnas numéricas sean de tipo número
+        # Convertir a numérico solo debe, haber y saldo (mantener 0 si vacío)
         for col in ['debe', 'haber', 'saldo']:
             if col in df_all.columns:
                 df_all[col] = pd.to_numeric(df_all[col], errors='coerce').fillna(0)
@@ -40,7 +38,11 @@ if uploaded_file and ejecutar:
         required_cols = ['mayor','sub_cta','clasificador','nro_not_exp','desc_documento','nro_doc','Fecha Contable','desc_proveedor','debe','haber','saldo','tipo_ctb','ciclo','fase']
         if set(required_cols).issubset(df_all.columns):
             df_proceso2 = df_all.copy()
-            df_proceso2["codigo_unido"] = df_proceso2['mayor'].astype(str)+"."+df_proceso2['sub_cta'].astype(str)+"-"+df_proceso2['clasificador'].astype(str)
+            # Asegurar que mayor, sub_cta y clasificador sean string sin NaN
+            for col in ['mayor','sub_cta','clasificador']:
+                df_proceso2[col] = df_proceso2[col].fillna("").astype(str)
+
+            df_proceso2["codigo_unido"] = df_proceso2['mayor']+"."+df_proceso2['sub_cta']+"-"+df_proceso2['clasificador']
             df_proceso2 = df_proceso2[['codigo_unido','nro_not_exp','desc_documento','nro_doc','Fecha Contable','desc_proveedor','debe','haber','saldo','tipo_ctb','ciclo','fase','mayor']]
         else:
             df_proceso2 = pd.DataFrame()
@@ -81,9 +83,11 @@ if uploaded_file and ejecutar:
 
         # --- Proceso 4 --- Filtro sobre conciliacion1_new
         if not df_conciliacion1_new.empty:
+            filtro1_clean = filtro1.strip()
+            filtro2_clean = filtro2.strip()
             df_filtro = df_conciliacion1_new[
-                df_conciliacion1_new['codigo_unido'].str.contains(filtro1, na=False) |
-                df_conciliacion1_new['codigo_unido'].str.contains(filtro2, na=False)
+                df_conciliacion1_new['codigo_unido'].str.contains(filtro1_clean, na=False, regex=False) |
+                df_conciliacion1_new['codigo_unido'].str.contains(filtro2_clean, na=False, regex=False)
             ]
         else:
             df_filtro = pd.DataFrame()
