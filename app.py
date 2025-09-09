@@ -18,23 +18,29 @@ if uploaded_file and ejecutar:
         # Leer archivo Excel
         xls = pd.ExcelFile(uploaded_file)
 
-        # --- Proceso 1 ---
+        # Concatenar todas las hojas para procesos iniciales
         df_all = pd.concat([xls.parse(sheet) for sheet in xls.sheet_names])
-        df_all = df_all.astype(str)
 
+        # Forzar que las columnas numéricas sean de tipo número
+        for col in ['debe', 'haber', 'saldo']:
+            if col in df_all.columns:
+                df_all[col] = pd.to_numeric(df_all[col], errors='coerce').fillna(0)
+
+        # --- Proceso 1 ---
         if {'mayor', 'sub_cta', 'clasificador'}.issubset(df_all.columns):
             df_proceso1 = df_all[
-                df_all['mayor'].str.startswith(('4','5'))
+                df_all['mayor'].astype(str).str.startswith(('4','5'))
             ].copy()
-            df_proceso1["mayor_subcta"] = df_proceso1['mayor'] + "." + df_proceso1['sub_cta']
+            df_proceso1["mayor_subcta"] = df_proceso1['mayor'].astype(str) + "." + df_proceso1['sub_cta'].astype(str)
             df_proceso1 = df_proceso1[['mayor_subcta','clasificador']]
         else:
             df_proceso1 = pd.DataFrame()
 
         # --- Proceso 2 ---
-        if {'mayor','sub_cta','clasificador','nro_not_exp','desc_documento','nro_doc','Fecha Contable','desc_proveedor','debe','haber','saldo'}.issubset(df_all.columns):
+        required_cols = ['mayor','sub_cta','clasificador','nro_not_exp','desc_documento','nro_doc','Fecha Contable','desc_proveedor','debe','haber','saldo','tipo_ctb','ciclo','fase']
+        if set(required_cols).issubset(df_all.columns):
             df_proceso2 = df_all.copy()
-            df_proceso2["codigo_unido"] = df_proceso2['mayor']+"."+df_proceso2['sub_cta']+"-"+df_proceso2['clasificador']
+            df_proceso2["codigo_unido"] = df_proceso2['mayor'].astype(str)+"."+df_proceso2['sub_cta'].astype(str)+"-"+df_proceso2['clasificador'].astype(str)
             df_proceso2 = df_proceso2[['codigo_unido','nro_not_exp','desc_documento','nro_doc','Fecha Contable','desc_proveedor','debe','haber','saldo','tipo_ctb','ciclo','fase','mayor']]
         else:
             df_proceso2 = pd.DataFrame()
@@ -47,26 +53,26 @@ if uploaded_file and ejecutar:
             cond1 = (df_proceso2['tipo_ctb'].astype(str) == '1') & \
                     (df_proceso2['ciclo'] == 'G') & \
                     (df_proceso2['fase'] == 'D') & \
-                    (df_proceso2['debe'].astype(float) != 0)
+                    (df_proceso2['debe'] != 0)
             condiciones.append(df_proceso2[cond1])
 
             # Condición 2
             cond2 = (df_proceso2['tipo_ctb'].astype(str) == '1') & \
                     (df_proceso2['ciclo'] == 'I') & \
                     (df_proceso2['fase'] == 'D') & \
-                    (df_proceso2['haber'].astype(float) != 0)
+                    (df_proceso2['haber'] != 0)
             condiciones.append(df_proceso2[cond2])
 
             # Condición 3
             cond3 = (df_proceso2['tipo_ctb'].astype(str) == '2') & \
-                    (df_proceso2['saldo'].astype(float) != 0) & \
+                    (df_proceso2['saldo'] != 0) & \
                     (((df_proceso2['ciclo'] == 'G') & (df_proceso2['fase'] == 'D')) | ((df_proceso2['ciclo'] == 'I') & (df_proceso2['fase'] == 'R'))) & \
-                    (df_proceso2['mayor'].str.startswith(('8501','8601')))
+                    (df_proceso2['mayor'].astype(str).str.startswith(('8501','8601')))
             condiciones.append(df_proceso2[cond3])
 
             # Condición 4
             cond4 = (df_proceso2['ciclo'] == 'C') & (df_proceso2['fase'] == 'C') & \
-                    (df_proceso2['mayor'].str.startswith(('4','5','8501','8601')))
+                    (df_proceso2['mayor'].astype(str).str.startswith(('4','5','8501','8601')))
             condiciones.append(df_proceso2[cond4])
 
             df_conciliacion1_new = pd.concat(condiciones, ignore_index=True)
