@@ -73,16 +73,16 @@ if uploaded_file:
         df_conciliacion = pd.concat([filtro1, filtro2, filtro3], ignore_index=True)
 
         # -------------------------
-        # FILTRO ADICIONAL en conciliacion (columna codigo_unido)
+        # FILTRO ADICIONAL en conciliacion (columna codigo_unido contiene dato1 o dato2)
         # -------------------------
         if dato1 or dato2:
-            condiciones = []
+            mask = pd.Series(False, index=df_conciliacion.index)
+            col = df_conciliacion["codigo_unido"].astype(str)
             if dato1:
-                condiciones.append(df_conciliacion["codigo_unido"].str.contains(str(dato1), na=False))
+                mask |= col.str.contains(dato1, case=False, na=False)
             if dato2:
-                condiciones.append(df_conciliacion["codigo_unido"].str.contains(str(dato2), na=False))
-            if condiciones:
-                df_conciliacion = df_conciliacion[pd.concat(condiciones, axis=1).any(axis=1)]
+                mask |= col.str.contains(dato2, case=False, na=False)
+            df_conciliacion = df_conciliacion[mask]
 
         # -------------------------
         # EXPORTACIÓN A EXCEL
