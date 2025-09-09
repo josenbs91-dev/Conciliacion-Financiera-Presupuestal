@@ -1,29 +1,23 @@
-# Conciliación Financiera Presupuestal
+# Conciliacion-Financiera-Presupuestal
 
-App en **Streamlit** que procesa un Excel y aplica dos procesos:
+Aplicación en **Streamlit** para procesar archivos Excel con reglas de conciliación financiera y presupuestal.
 
-## 🚀 Procesos
+## 🚀 Funcionalidad
 
-### Proceso 1
-- Une `mayor-sub_cta` en una columna.
-- Filtra solo `mayor` que comiencen con **5** o **4**.
-- Muestra junto al `clasificador`.
+1. **Subida de Excel**: Se requiere un archivo que contenga la hoja `conciliacion1`.
+2. **Procesos automáticos**:
+   - **Proceso 1**: Crea hoja `proceso1` uniendo `mayor.sub_cta` (si empieza con 4 o 5) y mostrando su clasificador.
+   - **Proceso 2**: Crea hoja `proceso2` con `codigo_unido` (`mayor.sub_cta-clasificador`) y columnas seleccionadas.
+   - **Proceso 3**: Crea hoja `conciliacion1_new` aplicando filtros según reglas de ciclo, fase, tipo_ctb y montos.
+   - **Proceso 4**: Aplica filtros por dos valores escritos por el usuario en `codigo_unido`, generando la hoja `resultado_filtro`.
 
-### Proceso 2
-- Aplica tres filtros contables:
-  1. `tipo_ctb = 1` con `haber ≠ 0` y `(ciclo = G, fase = D) o (ciclo = I, fase = D)`.
-  2. `tipo_ctb = 2` con `debe ≠ 0` y `(ciclo = G, fase = D) o (ciclo = I, fase = R)`.
-  3. `ciclo = C y fase = C` y `mayor` inicia con 5, 4, 8501 o 8601.
-- Crea `codigo_unido = mayor-sub_cta-clasificador`.
-- Exporta: `codigo_unido, nro_not_exp, desc_documento, nro_doc, Fecha Contable, desc_proveedor, saldo`.
+3. **Descarga de resultados**: El archivo procesado se descarga con todas las hojas originales y las nuevas (`proceso1`, `proceso2`, `conciliacion1_new`, `resultado_filtro`).
 
-## 📂 Exportación
-El Excel generado contiene tres hojas:
-- **Original**: datos sin filtrar.
-- **Proceso 1**: `mayor-sub_cta` y `clasificador`.
-- **Proceso 2**: filtros contables aplicados.
+## 📦 Requisitos
 
-## 📦 Instalación local
+- Python 3.9 o superior  
+- Librerías indicadas en `requirements.txt`
+
+Instalación de dependencias:
 ```bash
 pip install -r requirements.txt
-streamlit run app.py
