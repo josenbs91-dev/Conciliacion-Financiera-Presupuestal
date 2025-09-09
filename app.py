@@ -2,110 +2,122 @@ import streamlit as st
 import pandas as pd
 import io
 
-st.title("Conciliación Financiera Presupuestal")
+st.title("📊 Conciliación Financiera Presupuestal")
 
-# Subida de archivo
-uploaded_file = st.file_uploader("Sube tu archivo Excel", type=["xlsx"])
+# Cargar archivo
+archivo = st.file_uploader("Cargar archivo Excel", type=["xlsx"])
 
-# Inputs para filtros adicionales (columna codigo_unido en conciliacion)
-dato1 = st.text_input("Dato filtro 1 (columna codigo_unido)")
-dato2 = st.text_input("Dato filtro 2 (columna codigo_unido)")
+# Entradas de texto para filtros
+dato1 = st.text_input("🔍 Dato filtro 1 (buscar en codigo_unido)")
+dato2 = st.text_input("🔍 Dato filtro 2 (buscar en codigo_unido)")
 
-if uploaded_file:
+if archivo:
     try:
-        # Cargar archivo Excel manteniendo formatos originales como texto
-        df = pd.read_excel(uploaded_file, dtype=str)
+        # Leer todas las hojas del Excel
+        xls = pd.ExcelFile(archivo)
+        df = pd.read_excel(xls, xls.sheet_names[0], dtype=str)
+
+        # Mantener también los numéricos en su formato original (saldo, debe, haber)
+        numeric_cols = ["saldo", "debe", "haber"]
+        for col in numeric_cols:
+            if col in df.columns:
+                df[col] = pd.to_numeric(df[col], errors="coerce")
 
         # -------------------------
         # PROCESO 1
         # -------------------------
-        df_proceso1 = df[df["mayor"].astype(str).str.startswith(("5", "4"))].copy()
-        df_proceso1["mayor_subcta"] = df_proceso1["mayor"].astype(str) + "-" + df_proceso1["sub_cta"].astype(str)
-        df_proceso1 = df_proceso1[["mayor_subcta", "clasificador"]]
+        proceso1 = df[df["mayor"].astype(str).str.startswith(("5", "4"))][
+            ["mayor", "sub_cta", "clasificador"]
+        ].copy()
+        proceso1["mayor_subcta"] = proceso1["mayor"] + "-" + proceso1["sub_cta"]
+        proceso1 = proceso1[["mayor_subcta", "clasificador"]]
 
         # -------------------------
-        # PROCESO 2 → base_conc
+        # PROCESO 2 - base_conc
         # -------------------------
-        df_base = df.copy()
-        df_base["codigo_unido"] = (
-            df_base["mayor"].astype(str) + "-" +
-            df_base["sub_cta"].astype(str) + "-" +
-            df_base["clasificador"].astype(str)
+        proceso2 = df.copy()
+        proceso2["codigo_unido"] = (
+            proceso2["mayor"].astype(str) + "-" +
+            proceso2["sub_cta"].astype(str) + "-" +
+            proceso2["clasificador"].astype(str)
         )
-
-        df_base_conc = df_base[
-            ["codigo_unido", "nro_not_exp", "desc_documento", "nro_doc",
-             "Fecha Contable", "desc_proveedor", "saldo",
-             "tipo_ctb", "ciclo", "fase", "debe", "haber", "mayor"]
+        base_conc = proceso2[
+            ["codigo_unido", "nro_not_exp", "desc_documento",
+             "nro_doc", "Fecha Contable", "desc_proveedor", "saldo",
+             "tipo_ctb", "ciclo", "fase", "mayor", "debe", "haber"]
         ].copy()
 
         # -------------------------
-        # FILTROS → conciliacion
-        # -------------------------
-        # Filtro 1: tipo_ctb = 1, ciclo G, fase D, debe ≠ 0
-        filtro1 = df_base_conc[
-            (df_base_conc["tipo_ctb"] == "1") &
-            (df_base_conc["ciclo"] == "G") &
-            (df_base_conc["fase"] == "D") &
-            (df_base_conc["debe"].astype(float) != 0)
-        ]
-
-        # Filtro 2: tipo_ctb = 1, ciclo G, fase D, haber ≠ 0
-        filtro2 = df_base_conc[
-            (df_base_conc["tipo_ctb"] == "1") &
-            (df_base_conc["ciclo"] == "G") &
-            (df_base_conc["fase"] == "D") &
-            (df_base_conc["haber"].astype(float) != 0)
-        ]
-
-        # Filtro 3: tipo_ctb = 2, saldo ≠ 0, ciclo G fase D o ciclo I fase R, mayor = 8501/8601
-        filtro3 = df_base_conc[
-            (df_base_conc["tipo_ctb"] == "2") &
-            (df_base_conc["saldo"].astype(float) != 0) &
-            (
-                ((df_base_conc["ciclo"] == "G") & (df_base_conc["fase"] == "D")) |
-                ((df_base_conc["ciclo"] == "I") & (df_base_conc["fase"] == "R"))
-            ) &
-            (df_base_conc["mayor"].astype(str).str.startswith(("8501", "8601")))
-        ]
-
-        # Concatenar todos los filtros en orden
-        df_conciliacion = pd.concat([filtro1, filtro2, filtro3], ignore_index=True)
-
-        # -------------------------
-        # FILTRO ADICIONAL en conciliacion (columna codigo_unido contiene dato1 o dato2)
+        # FILTRO OR por dato1/dato2
         # -------------------------
         if dato1 or dato2:
-            mask = pd.Series(False, index=df_conciliacion.index)
-            col = df_conciliacion["codigo_unido"].astype(str)
-            if dato1:
-                mask |= col.str.contains(dato1, case=False, na=False)
-            if dato2:
-                mask |= col.str.contains(dato2, case=False, na=False)
-            df_conciliacion = df_conciliacion[mask]
+            col = base_conc["codigo_unido"].astype(str)
+            base_conc = base_conc[
+                (col.str.contains(dato1, case=False, na=False) if dato1 else False) |
+                (col.str.contains(dato2, case=False, na=False) if dato2 else False)
+            ]
 
         # -------------------------
-        # EXPORTACIÓN A EXCEL
+        # CONCILIACION (Filtros 1,2,3)
+        # -------------------------
+        conciliacion = pd.DataFrame()
+
+        # Filtro 1
+        filtro1 = base_conc[
+            (base_conc["tipo_ctb"] == "1") &
+            (base_conc["ciclo"] == "G") &
+            (base_conc["fase"] == "D") &
+            (base_conc["debe"] != 0)
+        ]
+        conciliacion = pd.concat([conciliacion, filtro1])
+
+        # Filtro 2
+        filtro2 = base_conc[
+            (base_conc["tipo_ctb"] == "1") &
+            (base_conc["ciclo"] == "I") &
+            (base_conc["fase"] == "D") &
+            (base_conc["haber"] != 0)
+        ]
+        conciliacion = pd.concat([conciliacion, filtro2])
+
+        # Filtro 3
+        filtro3 = base_conc[
+            (base_conc["tipo_ctb"] == "2") &
+            (base_conc["saldo"] != 0) &
+            (
+                (base_conc["ciclo"] == "G") & (base_conc["fase"] == "D") |
+                (base_conc["ciclo"] == "I") & (base_conc["fase"] == "R")
+            ) &
+            (
+                base_conc["mayor"].astype(str).str.startswith("8501") |
+                base_conc["mayor"].astype(str).str.startswith("8601")
+            )
+        ]
+        conciliacion = pd.concat([conciliacion, filtro3])
+
+        # -------------------------
+        # EXPORTAR EXCEL
         # -------------------------
         output = io.BytesIO()
-        with pd.ExcelWriter(output, engine="xlsxwriter", datetime_format="yyyy-mm-dd") as writer:
-            df_proceso1.to_excel(writer, index=False, sheet_name="Proceso 1")
-            df_base_conc.to_excel(writer, index=False, sheet_name="base_conc")
+        with pd.ExcelWriter(output, engine="xlsxwriter",
+                            datetime_format="yyyy-mm-dd") as writer:
+            proceso1.to_excel(writer, sheet_name="Proceso 1", index=False)
+            base_conc.to_excel(writer, sheet_name="base_conc", index=False)
 
-            # Exportar conciliacion y agregar datos buscados en Q1:R2
-            df_conciliacion.to_excel(writer, index=False, sheet_name="conciliacion")
-
+            # Agregar referencia en base_conc
             workbook = writer.book
-            worksheet = writer.sheets["conciliacion"]
-            worksheet.write("Q1", "Datos a buscar")
-            worksheet.write("Q2", dato1 if dato1 else "")
-            worksheet.write("R2", dato2 if dato2 else "")
+            worksheet = writer.sheets["base_conc"]
+            worksheet.write("L1", "Datos a buscar")
+            worksheet.write("L2", dato1 if dato1 else "")
+            worksheet.write("M2", dato2 if dato2 else "")
 
-        # Botón de descarga
+            conciliacion.to_excel(writer, sheet_name="conciliacion", index=False)
+
+        st.success("✅ Archivo procesado correctamente")
         st.download_button(
-            label="📥 Descargar Excel procesado",
+            label="⬇️ Descargar Excel procesado",
             data=output.getvalue(),
-            file_name="conciliacion_procesada.xlsx",
+            file_name="conciliacion_financiera.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
 
