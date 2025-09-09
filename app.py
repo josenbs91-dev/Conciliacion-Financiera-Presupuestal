@@ -4,19 +4,14 @@ import io
 
 st.title("Conciliación Financiera Presupuestal")
 
-# Inputs para filtrar Proceso 2
-criterio1 = st.text_input("🔍 Dato a buscar 1 (opcional)")
-criterio2 = st.text_input("🔍 Dato a buscar 2 (opcional)")
-
-# Cargar archivo Excel
 uploaded_file = st.file_uploader("Sube tu archivo Excel", type=["xlsx"])
 
 if uploaded_file:
     try:
-        # Leer archivo
+        # Leer archivo con formatos originales
         df = pd.read_excel(uploaded_file, dtype=str)
 
-        # Convertir columnas numéricas donde aplique
+        # Convertir columnas numéricas donde aplique (pero mantener formato original en exportación)
         for col in ["haber", "debe", "saldo"]:
             if col in df.columns:
                 df[col] = pd.to_numeric(df[col], errors="coerce")
@@ -36,98 +31,39 @@ if uploaded_file:
         # Filtro 1
         filtro1 = df[
             (df["tipo_ctb"] == "1") &
-            (df["haber"].fillna(0) != 0) &
-            (((df["ciclo"] == "G") & (df["fase"] == "D")) |
-             ((df["ciclo"] == "I") & (df["fase"] == "D")))
-        ]
-
-        # Filtro 2
-        filtro2 = df[
-            (df["tipo_ctb"] == "2") &
-            (df["debe"].fillna(0) != 0) &
-            (((df["ciclo"] == "G") & (df["fase"] == "D")) |
-             ((df["ciclo"] == "I") & (df["fase"] == "R"))) &
-            (df["mayor"].astype(str).str.startswith(("8501", "8601"), na=False))
-        ]
-
-        # Filtro 3
-        filtro3 = df[
-            (df["ciclo"] == "C") & (df["fase"] == "C") &
-            (df["mayor"].astype(str).str.startswith(("5", "4", "8501", "8601"), na=False))
-        ]
-
-        proceso2 = pd.concat([filtro1, filtro2, filtro3], ignore_index=True)
-        proceso2 = proceso2[[
+            (
+                ((df["debe"].fillna(0) != 0) & (df["ciclo"] == "G") & (df["fase"] == "D")) |
+                ((df["haber"].fillna(0) != 0) & (df["ciclo"] == "I") & (df["fase"] == "D"))
+            )
+        ][[
             "codigo_unido", "nro_not_exp", "desc_documento", "nro_doc",
             "Fecha Contable", "desc_proveedor", "saldo"
         ]]
 
-        # ✅ Aplicar filtros de criterios desde Streamlit
-        if criterio1 or criterio2:
-            condiciones = []
-            if criterio1:
-                condiciones.append(proceso2["codigo_unido"].astype(str).str.contains(criterio1, na=False))
-            if criterio2:
-                condiciones.append(proceso2["codigo_unido"].astype(str).str.contains(criterio2, na=False))
-            if condiciones:
-                proceso2 = proceso2[pd.concat(condiciones, axis=1).any(axis=1)]
+        # Filtro 2
+        filtro2 = df[
+            (df["tipo_ctb"] == "2") &
+            (df["saldo"].fillna(0) != 0) &
+            (
+                ((df["ciclo"] == "G") & (df["fase"] == "D")) |
+                ((df["ciclo"] == "I") & (df["fase"] == "R"))
+            ) &
+            (df["mayor"].astype(str).str.startswith(("8501", "8601"), na=False))
+        ][[
+            "codigo_unido", "nro_not_exp", "desc_documento", "nro_doc",
+            "Fecha Contable", "desc_proveedor", "saldo"
+        ]]
+
+        # Unir resultados → filtro1 seguido de filtro2
+        proceso2 = pd.concat([filtro1, filtro2], ignore_index=True)
 
         # ==============================
-        # 📌 PROCESO 3 → Conciliación
-        # ==============================
-        conciliacion_tables = []
-        for _, row in proceso1.iterrows():
-            mayor_subcta = str(row["mayor_subcta"])
-            clasificador = str(row["clasificador"])
-
-            # Filtrar filas que contengan mayor_subcta o clasificador
-            subset = proceso2[
-                proceso2["codigo_unido"].astype(str).str.contains(mayor_subcta, na=False) |
-                proceso2["codigo_unido"].astype(str).str.contains(clasificador, na=False)
-            ].copy()
-
-            if not subset.empty:
-                # Pivot dinámico → cada codigo_unido se vuelve encabezado
-                pivot = subset.pivot_table(
-                    index=["nro_not_exp", "desc_documento", "nro_doc",
-                           "Fecha Contable", "desc_proveedor"],
-                    columns="codigo_unido",
-                    values="saldo",
-                    aggfunc="sum",
-                    fill_value=""
-                ).reset_index()
-
-                conciliacion_tables.append((f"{mayor_subcta}-{clasificador}", pivot))
-
-        # ==============================
-        # 📌 Exportar resultados
+        # 📌 EXPORTAR
         # ==============================
         output = io.BytesIO()
         with pd.ExcelWriter(output, engine="xlsxwriter", datetime_format="yyyy-mm-dd") as writer:
             proceso1.to_excel(writer, sheet_name="Proceso 1", index=False)
-
-            # Escribir Proceso 2 y agregar "Datos a buscar"
-            proceso2.to_excel(writer, sheet_name="Proceso 2", index=False, startrow=2)
-
-            workbook = writer.book
-            ws2 = writer.sheets["Proceso 2"]
-
-            # Insertar etiqueta y criterios en L1, L2 y M2
-            ws2.write("L1", "Datos a buscar")
-            ws2.write("L2", criterio1 if criterio1 else "")
-            ws2.write("M2", criterio2 if criterio2 else "")
-
-            # Conciliación → varias tablas con espacio de 5 filas
-            if conciliacion_tables:
-                worksheet = workbook.add_worksheet("Conciliacion")
-                writer.sheets["Conciliacion"] = worksheet
-
-                start_row = 0
-                for name, table in conciliacion_tables:
-                    worksheet.write(start_row, 0, f"Tabla: {name}")
-                    table.to_excel(writer, sheet_name="Conciliacion",
-                                   startrow=start_row + 1, index=False)
-                    start_row += len(table) + 6  # tabla + título + 5 filas vacías
+            proceso2.to_excel(writer, sheet_name="Proceso 2", index=False)
 
         st.success("Procesos completados correctamente ✅")
 
