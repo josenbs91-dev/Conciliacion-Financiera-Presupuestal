@@ -67,7 +67,7 @@ if uploaded_file and ejecutar:
         else:
             df_conciliacion1_new = pd.DataFrame()
 
-        # --- Proceso 4 --- Filtro por todos los pares de filtros
+        # --- Proceso 4 --- Filtro por todos los pares de filtros con encabezados repetidos
         df_filtro_final = pd.DataFrame()
         if not df_conciliacion1_new.empty:
             row_offset = 0
@@ -80,11 +80,14 @@ if uploaded_file and ejecutar:
                     if not df_temp.empty:
                         df_temp.insert(0, 'Filtro1', f1)
                         df_temp.insert(1, 'Filtro2', f2)
-                        # Añadir filas vacías si no es la primera tabla
                         if row_offset > 0:
+                            # Añadir 5 filas vacías
                             df_filtro_final = pd.concat([df_filtro_final, pd.DataFrame([['']*len(df_temp.columns)]*5, columns=df_temp.columns)], ignore_index=True)
+                            # Insertar fila de encabezados
+                            encabezados = pd.DataFrame([df_temp.columns.tolist()], columns=df_temp.columns)
+                            df_filtro_final = pd.concat([df_filtro_final, encabezados], ignore_index=True)
                         df_filtro_final = pd.concat([df_filtro_final, df_temp], ignore_index=True)
-                        row_offset += len(df_temp) + 5
+                        row_offset += len(df_temp) + 6  # 5 filas + encabezado
 
         # Guardar todo en Excel
         output = io.BytesIO()
