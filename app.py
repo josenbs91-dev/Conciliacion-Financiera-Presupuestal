@@ -58,12 +58,40 @@ if uploaded_file:
         proceso2 = pd.concat([filtro1, filtro2], ignore_index=True)
 
         # ==============================
+        # 📌 FILTRO ADICIONAL POR BUSQUEDA
+        # ==============================
+        st.subheader("🔍 Filtro adicional en Proceso 2")
+        dato1 = st.text_input("Dato a buscar 1 (en columna codigo_unido):")
+        dato2 = st.text_input("Dato a buscar 2 (en columna codigo_unido):")
+
+        if dato1 or dato2:
+            condiciones = []
+            if dato1:
+                condiciones.append(proceso2["codigo_unido"].str.contains(dato1, na=False))
+            if dato2:
+                condiciones.append(proceso2["codigo_unido"].str.contains(dato2, na=False))
+            if condiciones:
+                mask = condiciones[0]
+                for cond in condiciones[1:]:
+                    mask |= cond
+                proceso2 = proceso2[mask]
+
+        # ==============================
         # 📌 EXPORTAR
         # ==============================
         output = io.BytesIO()
         with pd.ExcelWriter(output, engine="xlsxwriter", datetime_format="yyyy-mm-dd") as writer:
             proceso1.to_excel(writer, sheet_name="Proceso 1", index=False)
+
+            # Guardar proceso2 en Excel
             proceso2.to_excel(writer, sheet_name="Proceso 2", index=False)
+
+            # Escribir manualmente en L1, L2, M2
+            workbook  = writer.book
+            worksheet = writer.sheets["Proceso 2"]
+            worksheet.write("L1", "Datos a buscar")
+            worksheet.write("L2", dato1 if dato1 else "")
+            worksheet.write("M2", dato2 if dato2 else "")
 
         st.success("Procesos completados correctamente ✅")
 
