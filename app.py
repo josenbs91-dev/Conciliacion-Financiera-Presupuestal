@@ -7,15 +7,17 @@ st.title("📊 Conciliación Financiera Presupuestal")
 # Subir archivo Excel
 uploaded_file = st.file_uploader("Sube tu archivo Excel", type=["xlsx"])
 
-# Interfaz para ingresar hasta 50 pares de filtros
-st.markdown("Ingresa hasta 50 pares de filtros para buscar en 'codigo_unido'.")
-num_filas = 50
+# Subir archivo Excel con pares de filtros
+filtro_file = st.file_uploader("Sube archivo Excel con pares de filtros", type=["xlsx"])
+
 filtros = []
-for i in range(num_filas):
-    col1, col2 = st.columns(2)
-    dato1 = col1.text_input(f"Primer dato fila {i+1}")
-    dato2 = col2.text_input(f"Segundo dato fila {i+1}")
-    filtros.append((dato1.strip(), dato2.strip()))
+if filtro_file:
+    df_filtros = pd.read_excel(filtro_file, dtype=str)
+    df_filtros = df_filtros.fillna("")
+    if {'Filtro1', 'Filtro2'}.issubset(df_filtros.columns):
+        filtros = list(df_filtros[['Filtro1','Filtro2']].itertuples(index=False, name=None))
+    else:
+        st.warning("El archivo de filtros debe tener columnas 'Filtro1' y 'Filtro2'.")
 
 # Botón para ejecutar
 ejecutar = st.button("Ejecutar procesos y generar Excel")
@@ -67,9 +69,9 @@ if uploaded_file and ejecutar:
         else:
             df_conciliacion1_new = pd.DataFrame()
 
-        # --- Proceso 4 --- Filtro por todos los pares de filtros con encabezados repetidos
+        # --- Proceso 4 --- Filtro por pares de filtros con encabezados repetidos
         df_filtro_final = pd.DataFrame()
-        if not df_conciliacion1_new.empty:
+        if not df_conciliacion1_new.empty and filtros:
             row_offset = 0
             for f1, f2 in filtros:
                 if f1 or f2:
