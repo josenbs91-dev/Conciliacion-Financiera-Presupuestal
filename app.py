@@ -4,105 +4,90 @@ import io
 
 st.title("Conciliación Financiera Presupuestal")
 
+# Subida de archivo
 uploaded_file = st.file_uploader("Sube tu archivo Excel", type=["xlsx"])
+
+# Entradas de búsqueda
+dato1 = st.text_input("Dato a buscar 1")
+dato2 = st.text_input("Dato a buscar 2")
 
 if uploaded_file:
     try:
-        # Leer archivo con formatos originales
-        df = pd.read_excel(uploaded_file, dtype=str)
+        # Cargar el archivo Excel
+        df = pd.read_excel(uploaded_file, dtype=str)  # mantener formatos originales como texto
 
-        # Convertir columnas numéricas donde aplique (pero mantener formato original en exportación)
-        for col in ["haber", "debe", "saldo"]:
-            if col in df.columns:
-                df[col] = pd.to_numeric(df[col], errors="coerce")
+        # -------------------------
+        # PROCESO 1
+        # -------------------------
+        df_proceso1 = df[df["mayor"].astype(str).str.startswith(("5", "4"))].copy()
+        df_proceso1["mayor_subcta"] = df_proceso1["mayor"].astype(str) + "-" + df_proceso1["sub_cta"].astype(str)
+        df_proceso1 = df_proceso1[["mayor_subcta", "clasificador"]]
 
-        # ==============================
-        # 📌 PROCESO 1
-        # ==============================
-        proceso1 = df[df["mayor"].str.startswith(("5", "4"), na=False)].copy()
-        proceso1["mayor_subcta"] = proceso1["mayor"].astype(str) + "-" + proceso1["sub_cta"].astype(str)
-        proceso1 = proceso1[["mayor_subcta", "clasificador"]]
-
-        # ==============================
-        # 📌 FILTRO ADICIONAL POR BUSQUEDA (ANTES DEL PROCESO 2)
-        # ==============================
-        st.subheader("🔍 Filtro adicional")
-        dato1 = st.text_input("Dato a buscar 1 (en columna codigo_unido):")
-        dato2 = st.text_input("Dato a buscar 2 (en columna codigo_unido):")
-
-        # Crear columna codigo_unido antes del Proceso 2
+        # -------------------------
+        # PROCESO 2 (con filtro búsqueda antes)
+        # -------------------------
         df["codigo_unido"] = df["mayor"].astype(str) + "-" + df["sub_cta"].astype(str) + "-" + df["clasificador"].astype(str)
 
+        # Aplicar filtro búsqueda (Dato1 o Dato2)
         if dato1 or dato2:
-            condiciones = []
+            mask = pd.Series(False, index=df.index)
             if dato1:
-                condiciones.append(df["codigo_unido"].str.contains(dato1, na=False))
+                mask |= df["codigo_unido"].str.contains(str(dato1), na=False)
             if dato2:
-                condiciones.append(df["codigo_unido"].str.contains(dato2, na=False))
-            if condiciones:
-                mask = condiciones[0]
-                for cond in condiciones[1:]:
-                    mask |= cond
-                df = df[mask]
+                mask |= df["codigo_unido"].str.contains(str(dato2), na=False)
+            df = df[mask]
 
-        # ==============================
-        # 📌 PROCESO 2
-        # ==============================
-        # Filtro 1
-        filtro1 = df[
-            (df["tipo_ctb"] == "1") &
-            (
-                ((df["debe"].fillna(0) != 0) & (df["ciclo"] == "G") & (df["fase"] == "D")) |
-                ((df["haber"].fillna(0) != 0) & (df["ciclo"] == "I") & (df["fase"] == "D"))
-            )
-        ][[
-            "codigo_unido", "nro_not_exp", "desc_documento", "nro_doc",
-            "Fecha Contable", "desc_proveedor", "saldo"
-        ]].copy()
-        filtro1["Origen"] = "Filtro 1"
+        df_proceso2 = df[
+            ["codigo_unido", "nro_not_exp", "desc_documento", "nro_doc",
+             "Fecha Contable", "desc_proveedor", "saldo", "tipo_ctb",
+             "ciclo", "fase", "debe", "haber", "mayor"]
+        ].copy()
 
-        # Filtro 2
-        filtro2 = df[
-            (df["tipo_ctb"] == "2") &
-            (df["saldo"].fillna(0) != 0) &
-            (
-                ((df["ciclo"] == "G") & (df["fase"] == "D")) |
-                ((df["ciclo"] == "I") & (df["fase"] == "R"))
-            ) &
-            (df["mayor"].astype(str).str.startswith(("8501", "8601"), na=False))
-        ][[
-            "codigo_unido", "nro_not_exp", "desc_documento", "nro_doc",
-            "Fecha Contable", "desc_proveedor", "saldo"
-        ]].copy()
-        filtro2["Origen"] = "Filtro 2"
+        # -------------------------
+        # FILTRO 1
+        # -------------------------
+        filtro1 = df_proceso2[
+            ((df_proceso2["tipo_ctb"] == "1") &
+             ((df_proceso2["debe"].astype(float) != 0) |
+              ((df_proceso2["ciclo"] == "G") & (df_proceso2["fase"] == "D")) |
+              ((df_proceso2["ciclo"] == "I") & (df_proceso2["fase"] == "D") & (df_proceso2["haber"].astype(float) != 0))))
+        ]
 
-        # Unir resultados → filtro1 seguido de filtro2
-        proceso2 = pd.concat([filtro1, filtro2], ignore_index=True)
+        # -------------------------
+        # FILTRO 2
+        # -------------------------
+        filtro2 = df_proceso2[
+            ((df_proceso2["tipo_ctb"] == "2") &
+             (df_proceso2["saldo"].astype(float) != 0) &
+             (((df_proceso2["ciclo"] == "G") & (df_proceso2["fase"] == "D")) |
+              ((df_proceso2["ciclo"] == "I") & (df_proceso2["fase"] == "R")))) &
+            (df_proceso2["mayor"].astype(str).str.startswith(("8501", "8601")))
+        ]
 
-        # ==============================
-        # 📌 EXPORTAR
-        # ==============================
+        # Concatenar filtros
+        df_filtros = pd.concat([filtro1, filtro2], ignore_index=True)
+
+        # -------------------------
+        # EXPORTACIÓN A EXCEL
+        # -------------------------
         output = io.BytesIO()
         with pd.ExcelWriter(output, engine="xlsxwriter", datetime_format="yyyy-mm-dd") as writer:
-            proceso1.to_excel(writer, sheet_name="Proceso 1", index=False)
+            df_proceso1.to_excel(writer, index=False, sheet_name="Proceso 1")
+            df_proceso2.to_excel(writer, index=False, sheet_name="Proceso 2", startrow=2)
 
-            # Guardar proceso2 en Excel
-            proceso2.to_excel(writer, sheet_name="Proceso 2", index=False)
-
-            # Escribir manualmente en L1, L2, M2
+            # Escribir etiquetas de búsqueda en Proceso 2
             workbook  = writer.book
             worksheet = writer.sheets["Proceso 2"]
             worksheet.write("L1", "Datos a buscar")
-            worksheet.write("L2", dato1 if dato1 else "")
-            worksheet.write("M2", dato2 if dato2 else "")
+            worksheet.write("L2", str(dato1) if dato1 else "")
+            worksheet.write("M2", str(dato2) if dato2 else "")
 
-        st.success("Procesos completados correctamente ✅")
+            df_filtros.to_excel(writer, index=False, sheet_name="Filtros")
 
-        # Botón de descarga
         st.download_button(
-            label="📥 Descargar Excel Procesado",
+            label="📥 Descargar Excel procesado",
             data=output.getvalue(),
-            file_name="Procesos_Conciliacion.xlsx",
+            file_name="conciliacion_procesada.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
 
