@@ -24,10 +24,30 @@ if uploaded_file:
         proceso1 = proceso1[["mayor_subcta", "clasificador"]]
 
         # ==============================
-        # 📌 PROCESO 2
+        # 📌 FILTRO ADICIONAL POR BUSQUEDA (ANTES DEL PROCESO 2)
         # ==============================
+        st.subheader("🔍 Filtro adicional")
+        dato1 = st.text_input("Dato a buscar 1 (en columna codigo_unido):")
+        dato2 = st.text_input("Dato a buscar 2 (en columna codigo_unido):")
+
+        # Crear columna codigo_unido antes del Proceso 2
         df["codigo_unido"] = df["mayor"].astype(str) + "-" + df["sub_cta"].astype(str) + "-" + df["clasificador"].astype(str)
 
+        if dato1 or dato2:
+            condiciones = []
+            if dato1:
+                condiciones.append(df["codigo_unido"].str.contains(dato1, na=False))
+            if dato2:
+                condiciones.append(df["codigo_unido"].str.contains(dato2, na=False))
+            if condiciones:
+                mask = condiciones[0]
+                for cond in condiciones[1:]:
+                    mask |= cond
+                df = df[mask]
+
+        # ==============================
+        # 📌 PROCESO 2
+        # ==============================
         # Filtro 1
         filtro1 = df[
             (df["tipo_ctb"] == "1") &
@@ -38,7 +58,8 @@ if uploaded_file:
         ][[
             "codigo_unido", "nro_not_exp", "desc_documento", "nro_doc",
             "Fecha Contable", "desc_proveedor", "saldo"
-        ]]
+        ]].copy()
+        filtro1["Origen"] = "Filtro 1"
 
         # Filtro 2
         filtro2 = df[
@@ -52,29 +73,11 @@ if uploaded_file:
         ][[
             "codigo_unido", "nro_not_exp", "desc_documento", "nro_doc",
             "Fecha Contable", "desc_proveedor", "saldo"
-        ]]
+        ]].copy()
+        filtro2["Origen"] = "Filtro 2"
 
         # Unir resultados → filtro1 seguido de filtro2
         proceso2 = pd.concat([filtro1, filtro2], ignore_index=True)
-
-        # ==============================
-        # 📌 FILTRO ADICIONAL POR BUSQUEDA
-        # ==============================
-        st.subheader("🔍 Filtro adicional en Proceso 2")
-        dato1 = st.text_input("Dato a buscar 1 (en columna codigo_unido):")
-        dato2 = st.text_input("Dato a buscar 2 (en columna codigo_unido):")
-
-        if dato1 or dato2:
-            condiciones = []
-            if dato1:
-                condiciones.append(proceso2["codigo_unido"].str.contains(dato1, na=False))
-            if dato2:
-                condiciones.append(proceso2["codigo_unido"].str.contains(dato2, na=False))
-            if condiciones:
-                mask = condiciones[0]
-                for cond in condiciones[1:]:
-                    mask |= cond
-                proceso2 = proceso2[mask]
 
         # ==============================
         # 📌 EXPORTAR
