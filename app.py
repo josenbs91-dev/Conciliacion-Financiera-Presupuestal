@@ -58,6 +58,25 @@ if archivo:
             ]
 
         # -------------------------
+        # FILTRO 4 dentro de base_conc
+        # -------------------------
+        filtro4 = proceso2[
+            (proceso2["ciclo"] == "C") &
+            (proceso2["fase"] == "C") &
+            (
+                proceso2["mayor"].astype(str).str.startswith("5") |
+                proceso2["mayor"].astype(str).str.startswith("4")
+            )
+        ][
+            ["codigo_unido", "nro_not_exp", "desc_documento",
+             "nro_doc", "Fecha Contable", "desc_proveedor", "saldo",
+             "tipo_ctb", "ciclo", "fase", "mayor", "debe", "haber"]
+        ]
+
+        # Agregar filtro4 a base_conc
+        base_conc = pd.concat([base_conc, filtro4], ignore_index=True)
+
+        # -------------------------
         # CONCILIACION (Filtros 1,2,3)
         # -------------------------
         conciliacion = pd.DataFrame()
@@ -85,8 +104,8 @@ if archivo:
             (base_conc["tipo_ctb"] == "2") &
             (base_conc["saldo"] != 0) &
             (
-                (base_conc["ciclo"] == "G") & (base_conc["fase"] == "D") |
-                (base_conc["ciclo"] == "I") & (base_conc["fase"] == "R")
+                ((base_conc["ciclo"] == "G") & (base_conc["fase"] == "D")) |
+                ((base_conc["ciclo"] == "I") & (base_conc["fase"] == "R"))
             ) &
             (
                 base_conc["mayor"].astype(str).str.startswith("8501") |
